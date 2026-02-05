@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Appointments Dashboard</title>
+
+  <!-- Google Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter&display=swap" rel="stylesheet">
+  
+  <style>
+    body {
+      margin: 0;
+      font-family: "Inter", sans-serif;
+      background: #f4f6f9;
+    }
+
+    h2 {
+      margin: 0;
+      padding: 15px;
+      background: #4f46e5;
+      color: white;
+    }
+
+    .container {
+      display: flex;
+      height: 100vh;
+    }
+
+    /* Left Panel */
+    .list-panel {
+      width: 35%;
+      background: white;
+      border-right: 1px solid #ddd;
+      overflow-y: auto;
+    }
+
+    .appointment {
+      padding: 15px;
+      border-bottom: 1px solid #eee;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .appointment:hover {
+      background: #f1f5ff;
+    }
+
+    .appointment strong {
+      display: block;
+      font-size: 16px;
+    }
+
+    .appointment small {
+      color: #666;
+    }
+
+    /* Right Panel */
+    .details-panel {
+      width: 65%;
+      padding: 25px;
+      overflow-y: auto;
+    }
+
+    .card {
+      background: white;
+      padding: 25px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.05);
+    }
+
+    .field {
+      margin-bottom: 15px;
+    }
+
+    .field span {
+      font-weight: bold;
+      color: #333;
+    }
+
+    .empty {
+      color: #777;
+      text-align: center;
+      margin-top: 50px;
+    }
+
+    @media(max-width: 800px) {
+      .container {
+        flex-direction: column;
+      }
+
+      .list-panel,
+      .details-panel {
+        width: 100%;
+        height: 50vh;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<h2>📅 Appointments Dashboard</h2>
+
+<div class="container">
+
+  <!-- Left -->
+  <div class="list-panel" id="listPanel">
+    <div class="empty">Loading appointments...</div>
+  </div>
+
+  <!-- Right -->
+  <div class="details-panel" id="detailsPanel">
+    <div class="empty">
+      Select an appointment to view details
+    </div>
+  </div>
+
+</div>
+
+<!-- Firebase -->
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  query,
+  orderBy
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+  signOut
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+
+/* Firebase Config */
+const firebaseConfig = {
+  apiKey: "AIzaSyAkZ5ItGHMfKLGqxwU3o8F8rhuiEkvcqy0",
+  authDomain: "bloomz-2c9c0.firebaseapp.com",
+  projectId: "bloomz-2c9c0",
+  storageBucket: "bloomz-2c9c0.firebasestorage.app",
+  messagingSenderId: "552809403424",
+  appId: "1:552809403424:web:1cec0421d55df2e37c5845"
+};
+
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+
+const listPanel = document.getElementById("listPanel");
+const detailsPanel = document.getElementById("detailsPanel");
+
+
+// ---------------- LOGIN UI ----------------
+
+function showLogin() {
+
+  detailsPanel.innerHTML = `
+    <div class="card">
+
+      <h3>Admin Login</h3>
+
+      <input id="email" type="email"
+        placeholder="Email"
+        style="width:100%;padding:10px;margin:10px 0;" />
+
+      <input id="password" type="password"
+        placeholder="Password"
+        style="width:100%;padding:10px;margin:10px 0;" />
+
+      <button id="loginBtn"
+        style="width:100%;padding:12px;
+        background:#4f46e5;color:white;
+        border:none;border-radius:5px;
+        cursor:pointer;">
+        Login
+      </button>
+
+      <p id="error" style="color:red;"></p>
+
+    </div>
+  `;
+
+
+  document.getElementById("loginBtn").onclick = login;
+}
+
+
+// ---------------- LOGIN FUNCTION ----------------
+
+async function login() {
+
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value.trim();
+  const errorBox = document.getElementById("error");
+
+  errorBox.innerText = "";
+
+  if (!email || !password) {
+    errorBox.innerText = "Please enter email and password.";
+    return;
+  }
+
+  try {
+
+    await signInWithEmailAndPassword(auth, email, password);
+
+  } catch (err) {
+
+    console.error(err);
+
+    if (err.code === "auth/user-not-found") {
+      errorBox.innerText = "User not found.";
+    }
+    else if (err.code === "auth/wrong-password") {
+      errorBox.innerText = "Wrong password.";
+    }
+    else {
+      errorBox.innerText = "Login failed. Try again.";
+    }
+  }
+}
+
+
+
+// ---------------- LOGOUT ----------------
+
+function showLogout() {
+
+  listPanel.innerHTML = `
+    <div style="padding:15px;text-align:center;">
+      <button id="logoutBtn"
+        style="padding:8px 15px;
+        background:#ef4444;color:white;
+        border:none;border-radius:5px;
+        cursor:pointer;">
+        Logout
+      </button>
+    </div>
+  `;
+
+  document.getElementById("logoutBtn").onclick = () => {
+    signOut(auth);
+  };
+}
+
+
+// ---------------- LOAD DATA ----------------
+
+async function loadAppointments() {
+
+  listPanel.innerHTML = "Loading...";
+
+  const q = query(
+    collection(db, "appointments"),
+    orderBy("createdAt", "desc")
+  );
+
+  const snapshot = await getDocs(q);
+
+  listPanel.innerHTML = "";
+
+  if (snapshot.empty) {
+    listPanel.innerHTML =
+      `<div class="empty">No appointments</div>`;
+    return;
+  }
+
+  snapshot.forEach((doc) => {
+
+    const data = doc.data();
+
+    const div = document.createElement("div");
+    div.className = "appointment";
+
+    div.innerHTML = `
+      <strong>${data.name}</strong>
+      <small>${data.date} • ${data.time}</small>
+    `;
+
+    div.onclick = () => showDetails(data);
+
+    listPanel.appendChild(div);
+  });
+}
+
+
+// ---------------- SHOW DETAILS ----------------
+
+function showDetails(data) {
+
+  detailsPanel.innerHTML = `
+    <div class="card">
+
+      <h3>Appointment Details</h3>
+
+      <div class="field"><span>Name:</span> ${data.name}</div>
+      <div class="field"><span>Email:</span> ${data.email}</div>
+      <div class="field"><span>Phone:</span> ${data.phone}</div>
+      <div class="field"><span>Age:</span> ${data.age}</div>
+      <div class="field"><span>Gender:</span> ${data.gender}</div>
+      <div class="field"><span>Concern:</span> ${data.concern}</div>
+      <div class="field"><span>Date requested:</span> ${data.date}</div>
+      <div class="field"><span>Time requested:</span> ${data.time}</div>
+      <div class="field"><span>Message:</span> ${data.message}</div>
+
+      <div class="field">
+        <span>Created:</span>
+        ${data.createdAt?.toDate().toLocaleString()}
+      </div>
+
+    </div>
+  `;
+}
+
+
+// ---------------- AUTH LISTENER ----------------
+
+onAuthStateChanged(auth, (user) => {
+
+  if (user) {
+
+    // Logged in
+    showLogout();
+    loadAppointments();
+
+    detailsPanel.innerHTML =
+      `<div class="empty">Select appointment</div>`;
+
+  } else {
+
+    // Not logged in
+    listPanel.innerHTML = "";
+    showLogin();
+  }
+});
+
+</script>
+</body>
+</html>
+
